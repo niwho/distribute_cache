@@ -1,0 +1,19 @@
+syntax = "proto3";
+option go_package = "req";
+message Meta { //节点相关信息
+    string node=1;
+    string host=2;
+    string method=3;
+}
+message DRequest {
+    Meta meta=1;
+    string req_id=2; // 请求id
+    string key=3; // 一致性key
+    bytes params=4; // 请求参数，json或其他序列化数据
+}
+
+message DResponse{
+    Meta meta=1;
+    string req_id=2; // 响应的请求id
+    bytes  data=3; // 响应结果, json或其他序列化数据
+}
