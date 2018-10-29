@@ -1,9 +1,6 @@
 package exchange
 
 import (
-	"context"
-	"errors"
-	"github.com/gogo/protobuf/proto"
 	"github.com/niwho/distribute_cache/consistent"
 	"github.com/niwho/distribute_cache/proto"
 	"github.com/perlin-network/noise/log"
@@ -35,8 +32,10 @@ type ExchangeData struct {
 }
 
 // Callback for when the network starts listening for peers.
-func (ExchangeData) Startup(net *network.Network) {
-
+func (ex ExchangeData) Startup(net *network.Network) {
+	log.Info().Msgf("Startup :%s", net.Address)
+	// 保持一致性，必须把自己也加到组内
+	ex.con.Add(Member{UniqueName: net.Address})
 }
 
 // Callback for when an incoming message is received. Return true
@@ -45,53 +44,24 @@ func (ex ExchangeData) Receive(ctx *network.PluginContext) error {
 	// 解析请求参数
 	switch msg := ctx.Message().(type) {
 	case *req.DRequest:
-		log.Info().Msgf("<%s> %s", ctx.Client().Address)
+		log.Info().Msgf("<%s>", ctx.Client().Address)
 		// 先判断是否直接处理这个请求 还是转发
-		member := ex.con.GetNotSelf(msg.Key, Member{UniqueName: ctx.Self().Address})
-		if member == nil {
-			// 自己处理
-			log.Info().Msgf("handle key:%s", msg.Key)
-			if ex.handle != nil {
-				data, err := ex.handle.Fetch(msg.Params)
-				ctx.Reply(&req.DResponse{
-					Meta:  &req.Meta{},
-					ReqId: msg.ReqId,
-					Data:  data,
-				})
-				return err
-			} else {
-				log.Error().Msg("handle empty")
-			}
+
+		//log.Info().Msgf("handle key:%s", msg.Key)
+		var data []byte
+		var err error
+		if ex.handle != nil {
+			data, err = ex.handle.Fetch(msg.Params)
 		} else {
-			var data []byte
-			var err error
-			if mymem, ok := member.(Member); ok {
-				var response proto.Message
-				response, err = mymem.client.Request(context.Background(), msg)
-				if err != nil {
-					// todo 根据错误类型判断是否重试,只有网络错误才重试
-					//本地尝试获取一次
-					data, err = ex.handle.Fetch(msg.Params)
-				} else {
-					// forward的结果
-					resp := response.(*req.DResponse)
-					data = resp.Data
-				}
-			} else {
-				// self fetch
-				data, err = ex.handle.Fetch(msg.Params)
-			}
-
-			ctx.Reply(&req.DResponse{
-				Meta:  &req.Meta{},
-				ReqId: msg.ReqId,
-				Data:  data,
-			})
-			return err
-
+			data = []byte("empty")
 		}
-	default:
-		return errors.New("type error: should be DRequest")
+		ctx.Reply(&req.DResponse{
+			Meta:  &req.Meta{},
+			ReqId: msg.ReqId,
+			Data:  data,
+		})
+		return err
+
 	}
 	return nil
 }

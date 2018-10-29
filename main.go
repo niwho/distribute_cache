@@ -6,12 +6,11 @@ import (
 	"os"
 	"strings"
 
-	"context"
 	"fmt"
 	"github.com/niwho/distribute_cache/consistent"
 	"github.com/niwho/distribute_cache/exchange"
-	"github.com/niwho/distribute_cache/proto"
 	"github.com/perlin-network/noise/log"
+	"time"
 )
 
 func main() {
@@ -34,6 +33,7 @@ func main() {
 		Port:           port,
 		BootstrapPeers: peers,
 		Con:            cons,
+		Handle:         TestHandle{},
 	})
 	if err != nil {
 		log.Error().Msgf("err:%s", err)
@@ -49,17 +49,18 @@ func main() {
 			continue
 		}
 
-		member := cons.GetNotSelf(input, exchange.Member{UniqueName: fmt.Sprintf("%s://%s:%d", protocol, host, port)})
-		if member == nil {
-			log.Info().Msgf("self handle key=%s", input)
-		} else {
-			mem := member.(exchange.Member)
-			response, err := mem.Client().Request(context.Background(), &req.DRequest{
-				Params: []byte("get key:" + input),
-			})
-			log.Info().Msgf("self handle key=%s, repsonse=%s, err=%s", input, response, err)
-		}
+		resp, err := exchange.Do(input, []byte("test data"))
+		log.Info().Msgf("resp:%s, err:%s", string(resp), err)
 
 	}
 
+}
+
+type TestHandle struct {
+}
+
+func (TestHandle) Fetch(params []byte) (resp []byte, err error) {
+	log.Info().Msgf("params:%s", string(params))
+	resp = []byte(fmt.Sprint("%d", time.Now().Unix()))
+	return
 }
